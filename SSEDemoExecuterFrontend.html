@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SSE Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f9;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .form-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        form {
+            display: flex;
+            align-items: center;
+            background-color: #fff;
+            padding: 10px 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        label {
+            margin-right: 10px;
+            font-weight: bold;
+        }
+        input[type="text"] {
+            width: 150px;
+            padding: 8px;
+            margin-right: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #usersContainer {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        .user-column {
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            min-width: 200px;
+            cursor: move;
+        }
+        .message-block {
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #e1ffc7;
+            border-radius: 5px;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+        }
+        .message-block:hover {
+            background-color: #d4ffab;
+        }
+        .message-type {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .message-id {
+            font-size: 0.8em;
+            color: #888;
+            margin-top: 5px;
+        }
+        @keyframes highlight {
+            from {
+                background-color: yellow;
+            }
+            to {
+                background-color: #e1ffc7;
+            }
+        }
+        .highlight {
+            animation: highlight 2s ease-out;
+        }
+    </style>
+</head>
+<body>
+<h1>SSE Demo Example</h1>
+
+<!-- Form to take user input -->
+<div class="form-container">
+    <form id="sseForm">
+        <label for="username">User Name:</label>
+        <input type="text" id="username" name="username" required>
+
+        <label for="topic">Topic Interested:</label>
+        <input type="text" id="topic" name="topic" required>
+
+        <button type="submit">Subscribe</button>
+    </form>
+</div>
+
+<div id="usersContainer" ondragover="allowDrop(event)" ondrop="drop(event)"></div>
+
+<script>
+    document.getElementById('sseForm').addEventListener('submit', function(event) {
+        event.preventDefault();
+
+        const username = document.getElementById('username').value;
+        const topic = document.getElementById('topic').value;
+
+        const userSection = document.createElement("div");
+        userSection.className = "user-column";
+        userSection.id = `user-${username}-${topic}`;
+        userSection.draggable = true;
+        userSection.ondragstart = drag;
+        userSection.innerHTML = `<h2>${username} - ${topic}</h2><ul id="events-${username}-${topic}"></ul>`;
+        document.getElementById('usersContainer').appendChild(userSection);
+
+        const eventSource = new EventSource(`http://localhost:8080/api/events/subscribe?userId=${username}&eventType=${topic}`);
+
+        eventSource.onmessage = function(event) {
+            displayEvent('message', event.data, event.lastEventId, username, topic);
+        };
+
+        eventSource.addEventListener(topic, function(event) {
+            displayEvent(topic, event.data, event.lastEventId, username, topic);
+        });
+
+        eventSource.onerror = function(event) {
+            console.error("EventSource failed:", event);
+            displayEvent('error', 'EventSource failed', '', username, topic);
+        };
+
+        function displayEvent(type, data, id, username, topic) {
+            const newElement = document.createElement("div");
+            newElement.className = "message-block highlight";
+            newElement.innerHTML = `
+                <div class="message-type">Type: ${type}</div>
+                <div class="message-content">Message: ${data}</div>
+                <div class="message-id">ID: ${id}</div>
+            `;
+            setTimeout(() => {
+                newElement.classList.remove("highlight");
+            }, 2000);
+            const eventsList = document.getElementById(`events-${username}-${topic}`);
+            eventsList.insertBefore(newElement, eventsList.firstChild);
+        }
+    });
+
+    function allowDrop(event) {
+        event.preventDefault();
+    }
+
+    function drag(event) {
+        event.dataTransfer.setData("text", event.target.id);
+    }
+
+    function drop(event) {
+        event.preventDefault();
+        const data = event.dataTransfer.getData("text");
+        const element = document.getElementById(data);
+        event.target.appendChild(element);
+    }
+</script>
+</body>
+</html>
